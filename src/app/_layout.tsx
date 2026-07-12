@@ -1,13 +1,13 @@
 import React, { useEffect, useState, createContext, useContext, useCallback } from 'react';
 import { ActivityIndicator, View, StyleSheet, StatusBar } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from '../api/secureStore';
 import { initApiCache, apiCache, setUnauthorizedListener } from '../api/client';
 import BrandLoader from '../components/BrandLoader';
 
 interface AuthContextType {
   token: string | null;
-  login: (token: string, shopId: string) => Promise<void>;
+  login: (token: string, refreshToken: string, shopId: string) => Promise<void>;
   logout: () => Promise<void>;
   isLoading: boolean;
 }
@@ -48,18 +48,22 @@ export default function RootLayout() {
     else if (token && inAuthGroup) router.replace('/(tabs)');
   }, [token, segments, isLoading]);
 
-  const login = async (newToken: string, shopId: string) => {
+  const login = async (newToken: string, newRefreshToken: string, shopId: string) => {
     apiCache.token = newToken;
+    apiCache.refreshToken = newRefreshToken;
     apiCache.shopId = shopId;
     await SecureStore.setItemAsync('access_token', newToken);
+    await SecureStore.setItemAsync('refresh_token', newRefreshToken);
     await SecureStore.setItemAsync('selected_shop_id', shopId);
     setToken(newToken);
   };
 
   const logout = useCallback(async () => {
     apiCache.token = '';
+    apiCache.refreshToken = '';
     apiCache.shopId = '';
     await SecureStore.deleteItemAsync('access_token');
+    await SecureStore.deleteItemAsync('refresh_token');
     await SecureStore.deleteItemAsync('selected_shop_id');
     setToken(null);
   }, []);

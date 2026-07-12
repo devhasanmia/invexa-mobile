@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Modal, FlatList, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Modal, FlatList, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../_layout';
-import { LayoutDashboard, ShoppingBag, BookOpen, LogOut, MessageSquare, X } from 'lucide-react-native';
+import { LayoutDashboard, ShoppingBag, BookOpen, LogOut, MessageSquare, X, Receipt, Settings, Store, Bell } from 'lucide-react-native';
 import DashboardView from '../../components/DashboardView';
 import PosView from '../../components/PosView';
 import DuesView from '../../components/DuesView';
+import ExpensesView from '../../components/ExpensesView';
+import SettingsView from '../../components/SettingsView';
 import storage from '../../api/storage';
 import api from '../../api/client';
 
 export default function MainTabNavigator() {
   const { logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'pos' | 'dues'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'pos' | 'expenses' | 'dues' | 'settings'>('dashboard');
   const [shopName, setShopName] = useState('আমার দোকান');
   const [isSmsHistoryVisible, setIsSmsHistoryVisible] = useState(false);
   const [smsHistory, setSmsHistory] = useState<any[]>([]);
@@ -52,9 +54,17 @@ export default function MainTabNavigator() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleTabChange = useCallback((tab: 'dashboard' | 'pos' | 'dues') => {
+  const handleTabChange = useCallback((tab: 'dashboard' | 'pos' | 'expenses' | 'dues' | 'settings') => {
     setActiveTab(tab);
   }, []);
+
+  const handleBellPress = () => {
+    Alert.alert(
+      'নোটিফিকেশন',
+      'আপনার কোনো নতুন নোটিফিকেশন নেই। স্টক অ্যালার্ট ও অন্যান্য আপডেট ড্যাশবোর্ডে দেখতে পাবেন।',
+      [{ text: 'ঠিক আছে' }]
+    );
+  };
 
   // Map header title
   const getHeaderTitle = () => {
@@ -63,8 +73,12 @@ export default function MainTabNavigator() {
         return 'ড্যাশবোর্ড';
       case 'pos':
         return 'মোবাইল POS';
+      case 'expenses':
+        return 'খরচ হিসাব';
       case 'dues':
         return 'বকেয়া খাতা';
+      case 'settings':
+        return 'অ্যাপ সেটিংস';
     }
   };
 
@@ -72,12 +86,14 @@ export default function MainTabNavigator() {
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* Custom Header Bar */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => setIsSmsHistoryVisible(true)} style={styles.smsBtn} activeOpacity={0.7}>
-          <MessageSquare size={18} color="#4f46e5" />
-        </TouchableOpacity>
+        <View style={styles.shopHeaderBadge}>
+          <Store size={14} color="#4f46e5" style={{ marginRight: 5 }} />
+          <Text style={styles.shopHeaderName} numberOfLines={1}>{shopName}</Text>
+        </View>
         <Text style={styles.headerTitle}>{getHeaderTitle()}</Text>
-        <TouchableOpacity onPress={logout} style={styles.logoutBtn} activeOpacity={0.7}>
-          <LogOut size={16} color="#ef4444" />
+        <TouchableOpacity onPress={handleBellPress} style={styles.bellBtn} activeOpacity={0.7}>
+          <Bell size={18} color="#64748b" />
+          <View style={styles.bellDot} />
         </TouchableOpacity>
       </View>
 
@@ -85,7 +101,9 @@ export default function MainTabNavigator() {
       <View style={styles.content}>
         {activeTab === 'dashboard' && <DashboardView onNavigate={handleTabChange} />}
         {activeTab === 'pos' && <PosView />}
+        {activeTab === 'expenses' && <ExpensesView />}
         {activeTab === 'dues' && <DuesView />}
+        {activeTab === 'settings' && <SettingsView onLogout={logout} />}
       </View>
 
       {/* Custom Luxury Bottom Tab Bar */}
@@ -100,6 +118,21 @@ export default function MainTabNavigator() {
             <LayoutDashboard size={20} color={activeTab === 'dashboard' ? '#4f46e5' : '#64748b'} />
             <Text style={[styles.tabText, activeTab === 'dashboard' && styles.tabTextActive]}>ড্যাশবোর্ড</Text>
             {activeTab === 'dashboard' ? (
+              <View style={styles.indicator} />
+            ) : (
+              <View style={styles.indicatorPlaceholder} />
+            )}
+          </TouchableOpacity>
+
+          {/* Expenses Tab */}
+          <TouchableOpacity
+            style={styles.tabItem}
+            onPress={() => handleTabChange('expenses')}
+            activeOpacity={0.7}
+          >
+            <Receipt size={20} color={activeTab === 'expenses' ? '#4f46e5' : '#64748b'} />
+            <Text style={[styles.tabText, activeTab === 'expenses' && styles.tabTextActive]}>খরচ হিসাব</Text>
+            {activeTab === 'expenses' ? (
               <View style={styles.indicator} />
             ) : (
               <View style={styles.indicatorPlaceholder} />
@@ -124,6 +157,21 @@ export default function MainTabNavigator() {
             <BookOpen size={20} color={activeTab === 'dues' ? '#4f46e5' : '#64748b'} />
             <Text style={[styles.tabText, activeTab === 'dues' && styles.tabTextActive]}>বকেয়া</Text>
             {activeTab === 'dues' ? (
+              <View style={styles.indicator} />
+            ) : (
+              <View style={styles.indicatorPlaceholder} />
+            )}
+          </TouchableOpacity>
+
+          {/* Settings Tab */}
+          <TouchableOpacity
+            style={styles.tabItem}
+            onPress={() => handleTabChange('settings')}
+            activeOpacity={0.7}
+          >
+            <Settings size={20} color={activeTab === 'settings' ? '#4f46e5' : '#64748b'} />
+            <Text style={[styles.tabText, activeTab === 'settings' && styles.tabTextActive]}>সেটিংস</Text>
+            {activeTab === 'settings' ? (
               <View style={styles.indicator} />
             ) : (
               <View style={styles.indicatorPlaceholder} />
@@ -212,13 +260,19 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
   },
-  smsBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: '#eef2ff',
-    justifyContent: 'center',
+  shopHeaderBadge: {
+    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#eef2ff',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 10,
+    maxWidth: 100,
+  },
+  shopHeaderName: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#4f46e5',
   },
   headerTitle: {
     fontSize: 16,
@@ -227,13 +281,23 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     flex: 1,
   },
-  logoutBtn: {
+  bellBtn: {
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: '#fff1f2',
+    backgroundColor: '#f1f5f9',
     justifyContent: 'center',
     alignItems: 'center',
+    position: 'relative',
+  },
+  bellDot: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#ef4444',
   },
   content: {
     flex: 1,
@@ -257,7 +321,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1,
     borderColor: '#f1f5f9',
-    paddingHorizontal: 28,
+    paddingHorizontal: 14,
     shadowColor: '#0f172a',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.05,
@@ -267,7 +331,7 @@ const styles = StyleSheet.create({
   tabItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    width: 64,
+    width: 58,
     height: '100%',
     paddingTop: 8,
   },

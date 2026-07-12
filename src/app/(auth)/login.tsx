@@ -30,6 +30,7 @@ export default function LoginScreen() {
   const [shops, setShops] = useState<any[]>([]);
   const [isShopModalVisible, setIsShopModalVisible] = useState(false);
   const [pendingToken, setPendingToken] = useState<string | null>(null);
+  const [pendingRefreshToken, setPendingRefreshToken] = useState<string | null>(null);
 
   // Load the previously saved server URL on mount so the user doesn't have to re-enter it
   useEffect(() => {
@@ -71,8 +72,8 @@ export default function LoginScreen() {
         password: password,
       });
 
-      const { accessToken } = response.data.data;
-      if (!accessToken) throw new Error('টোকেন পাওয়া যায়নি');
+      const { accessToken, refreshToken } = response.data.data;
+      if (!accessToken || !refreshToken) throw new Error('টোকেন পাওয়া যায়নি');
 
       const shopsResponse = await axios.get(`${formattedUrl}/shops`, {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -86,10 +87,11 @@ export default function LoginScreen() {
       }
 
       if (fetchedShops.length === 1) {
-        await login(accessToken, fetchedShops[0]._id);
+        await login(accessToken, refreshToken, fetchedShops[0]._id);
       } else {
         setShops(fetchedShops);
         setPendingToken(accessToken);
+        setPendingRefreshToken(refreshToken);
         setIsShopModalVisible(true);
       }
     } catch (error: any) {
@@ -101,9 +103,9 @@ export default function LoginScreen() {
   };
 
   const selectShop = async (shopId: string) => {
-    if (pendingToken) {
+    if (pendingToken && pendingRefreshToken) {
       setIsShopModalVisible(false);
-      await login(pendingToken, shopId);
+      await login(pendingToken, pendingRefreshToken, shopId);
     }
   };
 
@@ -140,7 +142,7 @@ export default function LoginScreen() {
                 <Server size={18} color="#94a3b8" style={styles.inputIcon} />
                 <TextInput
                   style={styles.textInput}
-                  placeholder="e.g. 192.168.0.100:5000"
+                  placeholder="e.g. 192.168.0.101:5000"
                   placeholderTextColor="#94a3b8"
                   value={serverUrl}
                   onChangeText={setServerUrl}

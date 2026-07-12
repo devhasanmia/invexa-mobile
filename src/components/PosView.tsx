@@ -11,6 +11,8 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
+  Dimensions,
+  Animated,
 } from 'react-native';
 import api from '../api/client';
 import storage from '../api/storage';
@@ -32,8 +34,82 @@ import {
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 
+interface FlyingItemProps {
+  startX: number;
+  startY: number;
+  onComplete: () => void;
+}
+
+const FlyingItem = ({ startX, startY, onComplete }: FlyingItemProps) => {
+  const startXAdjusted = startX - 12;
+  const startYAdjusted = startY - 94 - 12; // Adjust for header + status bar offset
+
+  const animX = React.useRef(new Animated.Value(startXAdjusted)).current;
+  const animY = React.useRef(new Animated.Value(startYAdjusted)).current;
+  const scale = React.useRef(new Animated.Value(1)).current;
+  const opacity = React.useRef(new Animated.Value(1)).current;
+
+  React.useEffect(() => {
+    const screenWidth = Dimensions.get('window').width;
+
+    const destX = (screenWidth / 2) - 12;
+    const destY = 30; // Center of topCartContainer (margin 16 + height 26 = 42) adjusted for half dot height (12)
+
+    Animated.parallel([
+      Animated.timing(animX, {
+        toValue: destX,
+        duration: 550,
+        useNativeDriver: true,
+      }),
+      Animated.timing(animY, {
+        toValue: destY,
+        duration: 550,
+        useNativeDriver: true,
+      }),
+      Animated.sequence([
+        Animated.timing(scale, {
+          toValue: 1.6,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scale, {
+          toValue: 0.6,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.timing(opacity, {
+        toValue: 0.4,
+        duration: 550,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      onComplete();
+    });
+  }, [animX, animY, scale, opacity, onComplete]);
+
+  return (
+    <Animated.View
+      style={[
+        styles.flyingDot,
+        {
+          transform: [
+            { translateX: animX },
+            { translateY: animY },
+            { scale },
+          ],
+          opacity,
+        },
+      ]}
+    >
+      <ShoppingCart size={12} color="#ffffff" />
+    </Animated.View>
+  );
+};
+
 export default function PosView() {
   const [products, setProducts] = useState<any[]>([]);
+  const [flyingItems, setFlyingItems] = useState<{ id: string; startX: number; startY: number }[]>([]);
   const [categories, setCategories] = useState<string[]>(['ALL']);
   const [selectedCategory, setSelectedCategory] = useState('ALL');
 
@@ -98,6 +174,7 @@ export default function PosView() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
 
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [accounts, setAccounts] = useState<any[]>([]);
 
   // Barcode scan simulation
   const handleBarcodeScanSimulate = () => {
@@ -115,6 +192,7 @@ export default function PosView() {
     try {
       const cachedProds = await storage.get<any[]>('cached_products');
       const cachedCusts = await storage.get<any[]>('cached_customers');
+      const cachedAccs = await storage.get<any[]>('cached_accounts');
       if (cachedProds) {
         setProducts(cachedProds);
         const uniqueCats = ['ALL', ...new Set(cachedProds.map((p: any) => p.category?.name).filter(Boolean)) as any];
@@ -128,6 +206,9 @@ export default function PosView() {
           setSelectedCustomer(cachedCusts[0]);
         }
       }
+      if (cachedAccs) {
+        setAccounts(cachedAccs);
+      }
     } catch (e) {
       console.error('Error loading cached POS data:', e);
     }
@@ -138,10 +219,11 @@ export default function PosView() {
       setIsLoading(true);
     }
     try {
-      const [prodRes, custRes, smsRes] = await Promise.all([
+      const [prodRes, custRes, smsRes, accRes] = await Promise.all([
         api.get('/products'),
         api.get('/customers'),
         api.get('/sms/templates').catch(() => ({ data: { data: [] } })),
+        api.get('/accounts').catch(() => ({ data: { data: [] } })),
       ]);
 
       const prods = prodRes.data.data || [];
@@ -160,6 +242,10 @@ export default function PosView() {
       if (templates.length > 0) {
         setSelectedTemplateId(templates[0]._id);
       }
+
+      const accs = accRes.data.data || [];
+      setAccounts(accs);
+      await storage.set('cached_accounts', accs);
 
       if (custs.length > 0 && !selectedCustomer) {
         setSelectedCustomer(custs[0]);
@@ -289,6 +375,26 @@ export default function PosView() {
     setCart((prev) => prev.filter((item) => item.product._id !== productId));
   }, []);
 
+  const triggerFlyingAnim = useCallback((event: any) => {
+    if (event && event.nativeEvent) {
+      const { pageX, pageY } = event.nativeEvent;
+      if (pageX && pageY) {
+        const id = Math.random().toString(36).substring(7);
+        setFlyingItems((prev) => [...prev, { id, startX: pageX, startY: pageY }]);
+      }
+    }
+  }, []);
+
+  const handleAddToCart = useCallback((product: any, event: any) => {
+    triggerFlyingAnim(event);
+    addToCart(product);
+  }, [addToCart, triggerFlyingAnim]);
+
+  const handleIncrement = useCallback((product: any, event: any) => {
+    triggerFlyingAnim(event);
+    updateQuantity(product._id, 1, product.stock);
+  }, [updateQuantity, triggerFlyingAnim]);
+
   // Filtered products list
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
@@ -388,6 +494,24 @@ export default function PosView() {
         return null;
       };
 
+      let resolvedAccountId: string | null = null;
+      if (paymentMethod !== 'DUE' && accounts.length > 0) {
+        const matchingAcc = accounts.find(
+          (acc) => acc.accountType === paymentMethod && acc.status === 'ACTIVE'
+        );
+        if (matchingAcc) {
+          resolvedAccountId = matchingAcc._id;
+        } else {
+          // Fallback to first CASH account for CASH payment
+          if (paymentMethod === 'CASH') {
+            const cashAcc = accounts.find(
+              (acc) => acc.accountType === 'CASH' && acc.status === 'ACTIVE'
+            );
+            if (cashAcc) resolvedAccountId = cashAcc._id;
+          }
+        }
+      }
+
       const payload = {
         customerId: selectedCustomer._id,
         items: cart.map((i) => ({
@@ -400,7 +524,7 @@ export default function PosView() {
         discount: calculatedDiscount,
         receivedAmount: actualPaid,
         paymentMethod,
-        accountId: null,
+        accountId: resolvedAccountId,
         dueDate: isDue ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : null,
         walletAppliedAmount: appliedWallet,
         sendSMS,
@@ -425,7 +549,7 @@ export default function PosView() {
 
     return (
       <View style={styles.prodCard}>
-        <TouchableOpacity onPress={() => addToCart(item)} activeOpacity={0.8}>
+        <TouchableOpacity onPress={(e) => handleAddToCart(item, e)} activeOpacity={0.8}>
           {item.image && item.image !== 'N/A' ? (
             <Image source={{ uri: item.image }} style={styles.prodImg} />
           ) : (
@@ -457,12 +581,12 @@ export default function PosView() {
                 <Minus size={11} color="#4f46e5" />
               </TouchableOpacity>
               <Text style={styles.gridQtyText}>{qtyInCart} টি</Text>
-              <TouchableOpacity style={styles.gridQtyBtn} onPress={() => updateQuantity(item._id, 1, item.stock)}>
+              <TouchableOpacity style={styles.gridQtyBtn} onPress={(e) => handleIncrement(item, e)}>
                 <Plus size={11} color="#4f46e5" />
               </TouchableOpacity>
             </View>
           ) : (
-            <TouchableOpacity style={styles.addGridBtn} onPress={() => addToCart(item)} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.addGridBtn} onPress={(e) => handleAddToCart(item, e)} activeOpacity={0.7}>
               <Plus size={12} color="#ffffff" style={{ marginRight: 4 }} />
               <Text style={styles.addGridBtnText}>কার্ট যোগ</Text>
             </TouchableOpacity>
@@ -470,7 +594,7 @@ export default function PosView() {
         </View>
       </View>
     );
-  }, [cart, addToCart, updateQuantity]);
+  }, [cart, handleAddToCart, handleIncrement, updateQuantity]);
 
   if (isLoading && products.length === 0) {
     return <PosSkeleton />;
@@ -478,6 +602,24 @@ export default function PosView() {
 
   return (
     <View style={styles.container}>
+      {/* Top Cart Banner */}
+      {cart.length > 0 && (
+        <TouchableOpacity style={styles.topCartContainer} onPress={() => setIsCartVisible(true)} activeOpacity={0.9}>
+          <LinearGradient
+            colors={['#10b981', '#059669']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.topCartGradient}
+          >
+            <ShoppingCart size={20} color="#ffffff" style={{ marginRight: 8 }} />
+            <Text style={styles.fabText}>কার্ট দেখুন • {formatTk(subTotal)}</Text>
+            <View style={styles.fabCountBadge}>
+              <Text style={styles.fabCountText}>{cart.reduce((s, i) => s + i.quantity, 0)}</Text>
+            </View>
+          </LinearGradient>
+        </TouchableOpacity>
+      )}
+
       {/* Search Header */}
       <View style={styles.searchBarWrapper}>
         <Search size={18} color="#94a3b8" style={styles.searchIcon} />
@@ -535,36 +677,133 @@ export default function PosView() {
         }
       />
 
-      {/* Floating Cart FAB */}
-      {cart.length > 0 && (
-        <TouchableOpacity style={styles.fabContainer} onPress={() => setIsCartVisible(true)} activeOpacity={0.9}>
-          <LinearGradient
-            colors={['#10b981', '#059669']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.fabGradient}
-          >
-            <ShoppingCart size={20} color="#ffffff" style={{ marginRight: 8 }} />
-            <Text style={styles.fabText}>কার্ট দেখুন • {formatTk(subTotal)}</Text>
-            <View style={styles.fabCountBadge}>
-              <Text style={styles.fabCountText}>{cart.reduce((s, i) => s + i.quantity, 0)}</Text>
-            </View>
-          </LinearGradient>
-        </TouchableOpacity>
-      )}
+
 
       {/* Checkout Modal Sheet */}
       {isCartVisible && (
         <Modal visible={isCartVisible} animationType="slide" transparent>
           <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
+            <View style={[styles.modalContent, (isNewCustModalVisible || isCustomerModalVisible) && { maxHeight: '90%' }]}>
               <View style={styles.modalHandle} />
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>কার্ট ও পেমেন্ট বিবরণ</Text>
-                <TouchableOpacity onPress={() => setIsCartVisible(false)} style={styles.closeBtn}>
-                  <X size={20} color="#94a3b8" />
-                </TouchableOpacity>
-              </View>
+
+              {isNewCustModalVisible ? (
+                <>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>নতুন কাস্টমার যোগ করুন</Text>
+                    <TouchableOpacity onPress={() => setIsNewCustModalVisible(false)} style={styles.closeBtn}>
+                      <X size={20} color="#94a3b8" />
+                    </TouchableOpacity>
+                  </View>
+                  <ScrollView contentContainerStyle={{ padding: 20, gap: 14 }} keyboardShouldPersistTaps="handled">
+                    {/* Photo Upload Picker */}
+                    <View style={styles.photoUploadWrapper}>
+                      <TouchableOpacity onPress={pickImage} style={styles.photoPickerBtn} activeOpacity={0.8}>
+                        {newCustPhoto ? (
+                          <Image source={{ uri: newCustPhoto }} style={styles.photoPreview} />
+                        ) : (
+                          <View style={styles.photoPlaceholder}>
+                            <Camera size={24} color="#64748b" />
+                            <Text style={styles.photoPlaceholderText}>ছবি যোগ করুন</Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                      {newCustPhoto && (
+                        <TouchableOpacity onPress={() => setNewCustPhoto(null)} style={styles.photoRemoveBtn}>
+                          <Text style={styles.photoRemoveText}>ছবি সরান</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    <View>
+                      <Text style={styles.inputLabel}>কাস্টমার নাম *</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        placeholder="নাম লিখুন"
+                        placeholderTextColor="#cbd5e1"
+                        value={newCustName}
+                        onChangeText={setNewCustName}
+                      />
+                    </View>
+                    <View>
+                      <Text style={styles.inputLabel}>মোবাইল নম্বর *</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        placeholder="মোবাইল নম্বর"
+                        placeholderTextColor="#cbd5e1"
+                        keyboardType="phone-pad"
+                        value={newCustMobile}
+                        onChangeText={setNewCustMobile}
+                      />
+                    </View>
+                    <View>
+                      <Text style={styles.inputLabel}>ঠিকানা *</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        placeholder="বর্তমান ঠিকানা লিখুন"
+                        placeholderTextColor="#cbd5e1"
+                        value={newCustAddress}
+                        onChangeText={setNewCustAddress}
+                      />
+                    </View>
+                    <View>
+                      <Text style={styles.inputLabel}>ইমেইল এড্রেস (ঐচ্ছিক)</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        placeholder="ইমেইল এড্রেস"
+                        placeholderTextColor="#cbd5e1"
+                        keyboardType="email-address"
+                        value={newCustEmail}
+                        onChangeText={setNewCustEmail}
+                      />
+                    </View>
+                    <View>
+                      <Text style={styles.inputLabel}>এনআইডি (ঐচ্ছিক)</Text>
+                      <TextInput
+                        style={styles.textInput}
+                        placeholder="এনআইডি নম্বর"
+                        placeholderTextColor="#cbd5e1"
+                        keyboardType="numeric"
+                        value={newCustNid}
+                        onChangeText={setNewCustNid}
+                      />
+                    </View>
+                    <TouchableOpacity style={[styles.submitBtn, { marginTop: 10, marginBottom: 20 }]} onPress={handleCreateCustomer}>
+                      <Text style={styles.submitBtnText}>কাস্টমার সেভ করুন</Text>
+                    </TouchableOpacity>
+                  </ScrollView>
+                </>
+              ) : isCustomerModalVisible ? (
+                <>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>কাস্টমার সিলেক্ট করুন</Text>
+                    <TouchableOpacity onPress={() => setIsCustomerModalVisible(false)} style={styles.closeBtn}>
+                      <X size={20} color="#94a3b8" />
+                    </TouchableOpacity>
+                  </View>
+                  <FlatList
+                    data={customers}
+                    keyExtractor={(i) => i._id}
+                    contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        style={[styles.customerItemRow, selectedCustomer?._id === item._id && styles.customerItemRowActive]}
+                        onPress={() => { setSelectedCustomer(item); setIsCustomerModalVisible(false); }}
+                      >
+                        <Text style={[styles.customerItemName, selectedCustomer?._id === item._id && { color: '#4f46e5' }]}>{item.name}</Text>
+                        <Text style={styles.customerItemMobile}>{item.mobile}</Text>
+                        {selectedCustomer?._id === item._id && <Check size={16} color="#4f46e5" style={{ marginLeft: 'auto' }} />}
+                      </TouchableOpacity>
+                    )}
+                  />
+                </>
+              ) : (
+                <>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>কার্ট ও পেমেন্ট বিবরণ</Text>
+                    <TouchableOpacity onPress={() => setIsCartVisible(false)} style={styles.closeBtn}>
+                      <X size={20} color="#94a3b8" />
+                    </TouchableOpacity>
+                  </View>
 
               <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
                 {/* Cart Items List */}
@@ -773,132 +1012,24 @@ export default function PosView() {
                   </LinearGradient>
                 </TouchableOpacity>
               </View>
+                </>
+              )}
             </View>
           </View>
         </Modal>
       )}
 
-      {/* Select Customer Modal Sheet */}
-      <Modal visible={isCustomerModalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>কাস্টমার সিলেক্ট করুন</Text>
-              <TouchableOpacity onPress={() => setIsCustomerModalVisible(false)} style={styles.closeBtn}>
-                <X size={20} color="#94a3b8" />
-              </TouchableOpacity>
-            </View>
-            <FlatList
-              data={customers}
-              keyExtractor={(i) => i._id}
-              contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[styles.customerItemRow, selectedCustomer?._id === item._id && styles.customerItemRowActive]}
-                  onPress={() => { setSelectedCustomer(item); setIsCustomerModalVisible(false); }}
-                >
-                  <Text style={[styles.customerItemName, selectedCustomer?._id === item._id && { color: '#4f46e5' }]}>{item.name}</Text>
-                  <Text style={styles.customerItemMobile}>{item.mobile}</Text>
-                  {selectedCustomer?._id === item._id && <Check size={16} color="#4f46e5" style={{ marginLeft: 'auto' }} />}
-                </TouchableOpacity>
-              )}
-            />
-          </View>
-        </View>
-      </Modal>
 
-      {/* Create Customer Modal Sheet */}
-      <Modal visible={isNewCustModalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
-            <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>নতুন কাস্টমার যোগ করুন</Text>
-              <TouchableOpacity onPress={() => setIsNewCustModalVisible(false)} style={styles.closeBtn}>
-                <X size={20} color="#94a3b8" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView contentContainerStyle={{ padding: 20, gap: 14 }} keyboardShouldPersistTaps="handled">
-              {/* Photo Upload Picker */}
-              <View style={styles.photoUploadWrapper}>
-                <TouchableOpacity onPress={pickImage} style={styles.photoPickerBtn} activeOpacity={0.8}>
-                  {newCustPhoto ? (
-                    <Image source={{ uri: newCustPhoto }} style={styles.photoPreview} />
-                  ) : (
-                    <View style={styles.photoPlaceholder}>
-                      <Camera size={24} color="#64748b" />
-                      <Text style={styles.photoPlaceholderText}>ছবি যোগ করুন</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-                {newCustPhoto && (
-                  <TouchableOpacity onPress={() => setNewCustPhoto(null)} style={styles.photoRemoveBtn}>
-                    <Text style={styles.photoRemoveText}>ছবি সরান</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              <View>
-                <Text style={styles.inputLabel}>কাস্টমার নাম *</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="নাম লিখুন"
-                  placeholderTextColor="#cbd5e1"
-                  value={newCustName}
-                  onChangeText={setNewCustName}
-                />
-              </View>
-              <View>
-                <Text style={styles.inputLabel}>মোবাইল নম্বর *</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="মোবাইল নম্বর"
-                  placeholderTextColor="#cbd5e1"
-                  keyboardType="phone-pad"
-                  value={newCustMobile}
-                  onChangeText={setNewCustMobile}
-                />
-              </View>
-              <View>
-                <Text style={styles.inputLabel}>ঠিকানা *</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="বর্তমান ঠিকানা লিখুন"
-                  placeholderTextColor="#cbd5e1"
-                  value={newCustAddress}
-                  onChangeText={setNewCustAddress}
-                />
-              </View>
-              <View>
-                <Text style={styles.inputLabel}>ইমেইল এড্রেস (ঐচ্ছিক)</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="ইমেইল এড্রেস"
-                  placeholderTextColor="#cbd5e1"
-                  keyboardType="email-address"
-                  value={newCustEmail}
-                  onChangeText={setNewCustEmail}
-                />
-              </View>
-              <View>
-                <Text style={styles.inputLabel}>এনআইডি (ঐচ্ছিক)</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="এনআইডি নম্বর"
-                  placeholderTextColor="#cbd5e1"
-                  keyboardType="numeric"
-                  value={newCustNid}
-                  onChangeText={setNewCustNid}
-                />
-              </View>
-              <TouchableOpacity style={[styles.submitBtn, { marginTop: 10, marginBottom: 20 }]} onPress={handleCreateCustomer}>
-                <Text style={styles.submitBtnText}>কাস্টমার সেভ করুন</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+      {flyingItems.map((item) => (
+        <FlyingItem
+          key={item.id}
+          startX={item.startX}
+          startY={item.startY}
+          onComplete={() => {
+            setFlyingItems((prev) => prev.filter((i) => i.id !== item.id));
+          }}
+        />
+      ))}
     </View>
   );
 }
@@ -1089,26 +1220,25 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
   },
-  // Floating Cart
-  fabContainer: {
-    position: 'absolute',
-    bottom: 92, // Positioned safely above the floating tab bar
-    left: 16,
-    right: 16,
+  // Top Cart Banner
+  topCartContainer: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: -4, // Pull search bar closer
     height: 52,
-    borderRadius: 26,
+    borderRadius: 14,
     shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  fabGradient: {
+  topCartGradient: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    borderRadius: 26,
+    borderRadius: 14,
   },
   fabText: {
     color: '#ffffff',
@@ -1616,5 +1746,22 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: '#ef4444',
+  },
+  flyingDot: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#10b981',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 6,
+    zIndex: 9999,
   },
 });

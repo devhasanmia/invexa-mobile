@@ -173,6 +173,46 @@ export function DuesSkeleton() {
   );
 }
 
+// 4. Expenses Skeleton layout
+export function ExpensesSkeleton() {
+  return (
+    <View style={styles.container}>
+      {/* Summary Cards placeholder */}
+      <View style={styles.row}>
+        <Skeleton width={(W - 44) / 2} height={80} borderRadius={20} />
+        <Skeleton width={(W - 44) / 2} height={80} borderRadius={20} />
+      </View>
+
+      {/* Budget Card placeholder */}
+      <Skeleton width="100%" height={92} borderRadius={22} style={{ marginBottom: 16 }} />
+
+      {/* Search bar placeholder */}
+      <Skeleton width="100%" height={44} borderRadius={14} style={{ marginBottom: 16 }} />
+
+      {/* Expense List Item placeholders */}
+      <View style={styles.duesCard}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <View style={{ gap: 6 }}>
+            <Skeleton width={130} height={16} borderRadius={8} />
+            <Skeleton width={90} height={12} borderRadius={6} />
+          </View>
+          <Skeleton width={60} height={22} borderRadius={10} />
+        </View>
+      </View>
+
+      <View style={[styles.duesCard, { marginTop: 12 }]}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <View style={{ gap: 6 }}>
+            <Skeleton width={110} height={16} borderRadius={8} />
+            <Skeleton width={80} height={12} borderRadius={6} />
+          </View>
+          <Skeleton width={60} height={22} borderRadius={10} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,

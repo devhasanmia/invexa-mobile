@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../api/client';
 import storage from '../api/storage';
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from '../api/secureStore';
 import {
   TrendingUp,
   TrendingDown,
