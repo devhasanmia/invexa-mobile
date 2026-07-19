@@ -2,19 +2,35 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Modal, FlatList, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../_layout';
-import { LayoutDashboard, ShoppingBag, BookOpen, LogOut, MessageSquare, X, Receipt, Settings, Store, Bell } from 'lucide-react-native';
+import { LayoutDashboard, ShoppingBag, BookOpen, LogOut, MessageSquare, X, Receipt, Settings, Store, Bell, ArrowLeft, Package, FileText, ClipboardList, ChevronDown } from 'lucide-react-native';
 import DashboardView from '../../components/DashboardView';
 import PosView from '../../components/PosView';
 import DuesView from '../../components/DuesView';
 import ExpensesView from '../../components/ExpensesView';
 import SettingsView from '../../components/SettingsView';
+import ProductsView from '../../components/ProductsView';
+import InvoicesView from '../../components/InvoicesView';
+import DailyClosingView from '../../components/DailyClosingView';
+import HalkhataView from '../../components/HalkhataView';
 import storage from '../../api/storage';
 import api from '../../api/client';
 
+export type ActiveTab =
+  | 'dashboard'
+  | 'pos'
+  | 'expenses'
+  | 'dues'
+  | 'settings'
+  | 'products'
+  | 'invoices'
+  | 'dailyClosing'
+  | 'halkhata';
+
 export default function MainTabNavigator() {
   const { logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'pos' | 'expenses' | 'dues' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [shopName, setShopName] = useState('আমার দোকান');
+  const [isFeatureMenuVisible, setIsFeatureMenuVisible] = useState(false);
   const [isSmsHistoryVisible, setIsSmsHistoryVisible] = useState(false);
   const [smsHistory, setSmsHistory] = useState<any[]>([]);
   const [isSmsLoading, setIsSmsLoading] = useState(false);
@@ -54,8 +70,9 @@ export default function MainTabNavigator() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleTabChange = useCallback((tab: 'dashboard' | 'pos' | 'expenses' | 'dues' | 'settings') => {
+  const handleTabChange = useCallback((tab: ActiveTab) => {
     setActiveTab(tab);
+    setIsFeatureMenuVisible(false);
   }, []);
 
   const handleBellPress = () => {
@@ -79,17 +96,34 @@ export default function MainTabNavigator() {
         return 'বকেয়া খাতা';
       case 'settings':
         return 'অ্যাপ সেটিংস';
+      case 'products':
+        return 'পণ্য ব্যবস্থাপনা';
+      case 'invoices':
+        return 'মেমো রেজিস্টার';
+      case 'dailyClosing':
+        return 'ডেইলি ক্লোজিং';
+      case 'halkhata':
+        return 'শুভ হালখাতা';
     }
   };
+
+  const isSubFeature = ['products', 'invoices', 'dailyClosing', 'halkhata'].includes(activeTab);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* Custom Header Bar */}
       <View style={styles.header}>
-        <View style={styles.shopHeaderBadge}>
-          <Store size={14} color="#4f46e5" style={{ marginRight: 5 }} />
-          <Text style={styles.shopHeaderName} numberOfLines={1}>{shopName}</Text>
-        </View>
+        {isSubFeature ? (
+          <TouchableOpacity onPress={() => handleTabChange('dashboard')} style={styles.backBtn} activeOpacity={0.7}>
+            <ArrowLeft size={18} color="#0f172a" />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity onPress={() => setIsFeatureMenuVisible(true)} style={styles.shopHeaderBadge} activeOpacity={0.8}>
+            <Store size={14} color="#4f46e5" style={{ marginRight: 4 }} />
+            <Text style={styles.shopHeaderName} numberOfLines={1}>{shopName}</Text>
+            <ChevronDown size={12} color="#4f46e5" style={{ marginLeft: 2 }} />
+          </TouchableOpacity>
+        )}
         <Text style={styles.headerTitle}>{getHeaderTitle()}</Text>
         <TouchableOpacity onPress={handleBellPress} style={styles.bellBtn} activeOpacity={0.7}>
           <Bell size={18} color="#64748b" />
@@ -104,6 +138,10 @@ export default function MainTabNavigator() {
         {activeTab === 'expenses' && <ExpensesView />}
         {activeTab === 'dues' && <DuesView />}
         {activeTab === 'settings' && <SettingsView onLogout={logout} />}
+        {activeTab === 'products' && <ProductsView />}
+        {activeTab === 'invoices' && <InvoicesView />}
+        {activeTab === 'dailyClosing' && <DailyClosingView />}
+        {activeTab === 'halkhata' && <HalkhataView />}
       </View>
 
       {/* Custom Luxury Bottom Tab Bar */}
@@ -179,6 +217,115 @@ export default function MainTabNavigator() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Feature Menu Modal Sheet */}
+      {isFeatureMenuVisible && (
+        <Modal visible={isFeatureMenuVisible} animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { height: 'auto', paddingBottom: 30 }]}>
+              <View style={styles.modalHandle} />
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>ইনভেক্সা মোবাইল ফিচারসমূহ</Text>
+                <TouchableOpacity onPress={() => setIsFeatureMenuVisible(false)} style={styles.closeBtn}>
+                  <X size={20} color="#94a3b8" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.featureGrid}>
+                <TouchableOpacity
+                  style={[styles.featureItem, activeTab === 'dashboard' && styles.featureItemActive]}
+                  onPress={() => handleTabChange('dashboard')}
+                >
+                  <View style={[styles.featureIconCircle, { backgroundColor: '#eef2ff' }]}>
+                    <LayoutDashboard size={20} color="#4f46e5" />
+                  </View>
+                  <Text style={styles.featureTitle}>ড্যাশবোর্ড</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.featureItem, activeTab === 'pos' && styles.featureItemActive]}
+                  onPress={() => handleTabChange('pos')}
+                >
+                  <View style={[styles.featureIconCircle, { backgroundColor: '#ecfdf5' }]}>
+                    <ShoppingBag size={20} color="#10b981" />
+                  </View>
+                  <Text style={styles.featureTitle}>মোবাইল POS</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.featureItem, activeTab === 'products' && styles.featureItemActive]}
+                  onPress={() => handleTabChange('products')}
+                >
+                  <View style={[styles.featureIconCircle, { backgroundColor: '#eef2ff' }]}>
+                    <Package size={20} color="#4f46e5" />
+                  </View>
+                  <Text style={styles.featureTitle}>পণ্য ব্যবস্থাপনা</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.featureItem, activeTab === 'invoices' && styles.featureItemActive]}
+                  onPress={() => handleTabChange('invoices')}
+                >
+                  <View style={[styles.featureIconCircle, { backgroundColor: '#f0f9ff' }]}>
+                    <FileText size={20} color="#0284c7" />
+                  </View>
+                  <Text style={styles.featureTitle}>মেমো রেজিস্টার</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.featureItem, activeTab === 'dailyClosing' && styles.featureItemActive]}
+                  onPress={() => handleTabChange('dailyClosing')}
+                >
+                  <View style={[styles.featureIconCircle, { backgroundColor: '#fff7ed' }]}>
+                    <ClipboardList size={20} color="#f97316" />
+                  </View>
+                  <Text style={styles.featureTitle}>ডেইলি ক্লোজিং</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.featureItem, activeTab === 'halkhata' && styles.featureItemActive]}
+                  onPress={() => handleTabChange('halkhata')}
+                >
+                  <View style={[styles.featureIconCircle, { backgroundColor: '#f5f3ff' }]}>
+                    <BookOpen size={20} color="#8b5cf6" />
+                  </View>
+                  <Text style={styles.featureTitle}>শুভ হালখাতা</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.featureItem, activeTab === 'expenses' && styles.featureItemActive]}
+                  onPress={() => handleTabChange('expenses')}
+                >
+                  <View style={[styles.featureIconCircle, { backgroundColor: '#fef2f2' }]}>
+                    <Receipt size={20} color="#ef4444" />
+                  </View>
+                  <Text style={styles.featureTitle}>খরচ হিসাব</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.featureItem, activeTab === 'dues' && styles.featureItemActive]}
+                  onPress={() => handleTabChange('dues')}
+                >
+                  <View style={[styles.featureIconCircle, { backgroundColor: '#f5f3ff' }]}>
+                    <BookOpen size={20} color="#8b5cf6" />
+                  </View>
+                  <Text style={styles.featureTitle}>বকেয়া খাতা</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.featureItem, activeTab === 'settings' && styles.featureItemActive]}
+                  onPress={() => handleTabChange('settings')}
+                >
+                  <View style={[styles.featureIconCircle, { backgroundColor: '#f1f5f9' }]}>
+                    <Settings size={20} color="#64748b" />
+                  </View>
+                  <Text style={styles.featureTitle}>সেটিংস</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
 
       {/* SMS History Modal */}
       {isSmsHistoryVisible && (
@@ -511,5 +658,46 @@ const styles = StyleSheet.create({
     color: '#64748b',
     fontWeight: '600',
     fontSize: 13,
+  },
+  backBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  featureGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    padding: 16,
+  },
+  featureItem: {
+    width: '30%',
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+  },
+  featureItemActive: {
+    borderColor: '#4f46e5',
+    backgroundColor: '#eef2ff',
+  },
+  featureIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  featureTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#1e293b',
+    textAlign: 'center',
   },
 });

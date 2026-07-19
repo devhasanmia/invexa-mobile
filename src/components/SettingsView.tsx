@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Alert, ScrollView } from 'react-native';
-import { Store, ShieldCheck, LogOut, Link, Settings } from 'lucide-react-native';
+import { Store, ShieldCheck, LogOut } from 'lucide-react-native';
 import storage from '../api/storage';
-import api, { apiCache } from '../api/client';
+import api from '../api/client';
 
 interface SettingsViewProps {
   onLogout: () => Promise<void>;
@@ -83,21 +83,6 @@ export default function SettingsView({ onLogout }: SettingsViewProps) {
         <View style={styles.limitRow}>
           <Text style={styles.limitLabel}>সর্বোচ্চ প্রোডাক্ট সংখ্যা</Text>
           <Text style={styles.limitVal}>{maxProducts}</Text>
-        </View>
-      </View>
-
-      {/* Connection Info */}
-      <View style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <Link size={18} color="#4f46e5" style={{ marginRight: 8 }} />
-          <Text style={styles.sectionTitle}>সিস্টেম কানেকশন</Text>
-        </View>
-
-        <View style={styles.limitRow}>
-          <Text style={styles.limitLabel}>সার্ভার আইপি URL</Text>
-          <Text style={[styles.limitVal, { fontSize: 11, color: '#64748b' }]} numberOfLines={1}>
-            {apiCache.baseUrl || 'কনফিগার করা নেই'}
-          </Text>
         </View>
       </View>
 

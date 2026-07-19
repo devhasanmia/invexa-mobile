@@ -29,9 +29,8 @@ export default function RootLayout() {
   useEffect(() => {
     const checkToken = async () => {
       try {
-        await initApiCache(); // Initialize in-memory cache instantly
-        const storedToken = await SecureStore.getItemAsync('access_token');
-        setToken(storedToken);
+        await initApiCache(); // Initialize in-memory cache in parallel
+        setToken(apiCache.token || null);
       } catch (e) {
         console.error('Failed to load token', e);
       } finally {

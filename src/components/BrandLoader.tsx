@@ -1,7 +1,5 @@
 import React from 'react';
-import { StyleSheet, View, Text, ActivityIndicator } from 'react-native';
-import { Sparkles } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { StyleSheet, View, Text, ActivityIndicator, Image } from 'react-native';
 
 interface BrandLoaderProps {
   message?: string;
@@ -12,14 +10,11 @@ export default function BrandLoader({ message = 'লোড হচ্ছে...', 
   return (
     <View style={[styles.container, fullScreen ? styles.fullScreen : styles.inline]}>
       <View style={styles.logoCircle}>
-        <LinearGradient
-          colors={['#4f46e5', '#6366f1']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.logoGradient}
-        >
-          <Sparkles size={28} color="#ffffff" />
-        </LinearGradient>
+        <Image
+          source={require('../../assets/images/logo-glow.png')}
+          style={styles.logoImage}
+          resizeMode="contain"
+        />
       </View>
       <Text style={styles.brandTitle}>Invexa</Text>
       <Text style={styles.brandSubtitle}>ব্যবসার ডিজিটাল সমাধান</Text>
@@ -45,22 +40,25 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   logoCircle: {
-    width: 64,
-    height: 64,
+    width: 72,
+    height: 72,
     borderRadius: 22,
+    backgroundColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
     shadowColor: '#4f46e5',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.12,
     shadowRadius: 12,
     elevation: 4,
     marginBottom: 16,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#e0e7ff',
   },
-  logoGradient: {
+  logoImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   brandTitle: {
     fontSize: 24,

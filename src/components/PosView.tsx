@@ -220,8 +220,8 @@ export default function PosView() {
     }
     try {
       const [prodRes, custRes, smsRes, accRes] = await Promise.all([
-        api.get('/products'),
-        api.get('/customers'),
+        api.get('/products?limit=0'),
+        api.get('/customers?limit=0'),
         api.get('/sms/templates').catch(() => ({ data: { data: [] } })),
         api.get('/accounts').catch(() => ({ data: { data: [] } })),
       ]);

@@ -10,7 +10,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import api from '../api/client';
+import api, { apiCache } from '../api/client';
 import storage from '../api/storage';
 import * as SecureStore from '../api/secureStore';
 import {
@@ -27,12 +27,27 @@ import {
   Award,
   ShieldCheck,
   Target,
+  Package,
+  FileText,
+  ClipboardList,
+  Settings,
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { DashboardSkeleton } from './LoadingSkeleton';
 
+export type MobileTab =
+  | 'dashboard'
+  | 'pos'
+  | 'dues'
+  | 'expenses'
+  | 'settings'
+  | 'products'
+  | 'invoices'
+  | 'dailyClosing'
+  | 'halkhata';
+
 interface DashboardViewProps {
-  onNavigate: (tab: 'dashboard' | 'pos' | 'dues') => void;
+  onNavigate: (tab: MobileTab) => void;
 }
 
 export default function DashboardView({ onNavigate }: DashboardViewProps) {
@@ -88,7 +103,7 @@ export default function DashboardView({ onNavigate }: DashboardViewProps) {
       setTopProducts(freshTopProds);
       await storage.set('cached_top_selling', freshTopProds);
 
-      const shopId = await SecureStore.getItemAsync('selected_shop_id');
+      const shopId = apiCache.shopId || (await SecureStore.getItemAsync('selected_shop_id'));
       const shops = shopsRes.data.data || [];
       const current = shops.find((s: any) => s._id === shopId) || shops[0];
       if (current) {
@@ -318,6 +333,57 @@ export default function DashboardView({ onNavigate }: DashboardViewProps) {
         </View>
       )}
 
+      {/* FEATURE 4: Quick All Desktop Features Navigation Grid */}
+      <Text style={styles.sectionLabel}>কুইক ফিচার ও সার্ভিসসমূহ</Text>
+      <View style={styles.quickGrid}>
+        <TouchableOpacity style={styles.quickCard} onPress={() => onNavigate('pos')} activeOpacity={0.8}>
+          <View style={[styles.quickIconBg, { backgroundColor: '#eef2ff' }]}>
+            <ShoppingBag size={20} color="#4f46e5" />
+          </View>
+          <Text style={styles.quickTitle}>মোবাইল POS</Text>
+          <Text style={styles.quickSub}>দ্রুত সেলস</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.quickCard} onPress={() => onNavigate('products')} activeOpacity={0.8}>
+          <View style={[styles.quickIconBg, { backgroundColor: '#ecfdf5' }]}>
+            <Package size={20} color="#10b981" />
+          </View>
+          <Text style={styles.quickTitle}>পণ্য খাতা</Text>
+          <Text style={styles.quickSub}>স্টক আপডেট</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.quickCard} onPress={() => onNavigate('invoices')} activeOpacity={0.8}>
+          <View style={[styles.quickIconBg, { backgroundColor: '#f0f9ff' }]}>
+            <FileText size={20} color="#0284c7" />
+          </View>
+          <Text style={styles.quickTitle}>মেমো রেজিস্টার</Text>
+          <Text style={styles.quickSub}>ইনভয়েস দেখা</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.quickCard} onPress={() => onNavigate('dailyClosing')} activeOpacity={0.8}>
+          <View style={[styles.quickIconBg, { backgroundColor: '#fff7ed' }]}>
+            <ClipboardList size={20} color="#f97316" />
+          </View>
+          <Text style={styles.quickTitle}>ডেইলি ক্লোজিং</Text>
+          <Text style={styles.quickSub}>ক্যাশ মেলানো</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.quickCard} onPress={() => onNavigate('halkhata')} activeOpacity={0.8}>
+          <View style={[styles.quickIconBg, { backgroundColor: '#f5f3ff' }]}>
+            <BookOpen size={20} color="#8b5cf6" />
+          </View>
+          <Text style={styles.quickTitle}>শুভ হালখাতা</Text>
+          <Text style={styles.quickSub}>ইভেন্ট ও SMS</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.quickCard} onPress={() => onNavigate('expenses')} activeOpacity={0.8}>
+          <View style={[styles.quickIconBg, { backgroundColor: '#fef2f2' }]}>
+            <Receipt size={20} color="#ef4444" />
+          </View>
+          <Text style={styles.quickTitle}>খরচ হিসাব</Text>
+          <Text style={styles.quickSub}>ব্যয় এন্ট্রি</Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 }
@@ -754,5 +820,46 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 2,
     fontWeight: '500',
+  },
+  quickGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 20,
+  },
+  quickCard: {
+    width: '31%',
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.02,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  quickIconBg: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  quickTitle: {
+    color: '#0f172a',
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  quickSub: {
+    color: '#94a3b8',
+    fontSize: 10,
+    marginTop: 2,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });

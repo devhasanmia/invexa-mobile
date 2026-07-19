@@ -130,7 +130,7 @@ export default function DuesView() {
       setIsLoading(true);
     }
     try {
-      const res = await api.get('/customers');
+      const res = await api.get('/customers?limit=0');
       const all = res.data.data || [];
       const dueOnly = all.filter((c: any) => c.due > 0);
       setCustomers(dueOnly);

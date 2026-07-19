@@ -1,33 +1,43 @@
 import axios from 'axios';
 import * as SecureStore from './secureStore';
 
-export const DEFAULT_BASE_URL = 'http://192.168.0.101:5000/api/v1';
+export const DEFAULT_BASE_URL = 'https://invexa-server.vercel.app/api/v1';
 
 // In-memory cache for API configuration parameters to avoid slow filesystem SecureStore read delays
 export const apiCache = {
-  baseUrl: '',
+  baseUrl: DEFAULT_BASE_URL,
   token: '',
   refreshToken: '',
   shopId: '',
 };
 
-// Initialize cache from SecureStore on startup
+// Helper function to sanitize/migrate base URL if it's pointing to old local IP addresses
+const normalizeUrl = (url: string | null): string => {
+  if (!url) return DEFAULT_BASE_URL;
+  if (url.includes('192.168.') || url.includes('localhost:5000') || url.includes('127.0.0.1')) {
+    return DEFAULT_BASE_URL;
+  }
+  return url;
+};
+
+// Initialize cache from SecureStore on startup in parallel for max performance
 export const initApiCache = async () => {
   try {
-    let url = await SecureStore.getItemAsync('server_url');
-    if (url && url.includes('192.168.0.100')) {
-      url = url.replace('192.168.0.100', '192.168.0.101');
-      await SecureStore.setItemAsync('server_url', url);
+    const [url, token, refreshToken, shopId] = await Promise.all([
+      SecureStore.getItemAsync('server_url'),
+      SecureStore.getItemAsync('access_token'),
+      SecureStore.getItemAsync('refresh_token'),
+      SecureStore.getItemAsync('selected_shop_id'),
+    ]);
+
+    const cleanUrl = normalizeUrl(url);
+    if (cleanUrl !== url) {
+      SecureStore.setItemAsync('server_url', cleanUrl).catch(() => {});
     }
-    apiCache.baseUrl = url || DEFAULT_BASE_URL;
 
-    const token = await SecureStore.getItemAsync('access_token');
+    apiCache.baseUrl = cleanUrl;
     apiCache.token = token || '';
-
-    const refreshToken = await SecureStore.getItemAsync('refresh_token');
     apiCache.refreshToken = refreshToken || '';
-
-    const shopId = await SecureStore.getItemAsync('selected_shop_id');
     apiCache.shopId = shopId || '';
   } catch (error) {
     console.error('Failed to initialize API cache:', error);
@@ -44,43 +54,25 @@ export const saveServerUrl = async (url: string) => {
 export const getServerUrl = async (): Promise<string> => {
   if (apiCache.baseUrl) return apiCache.baseUrl;
   let url = await SecureStore.getItemAsync('server_url');
-  if (url && url.includes('192.168.0.100')) {
-    url = url.replace('192.168.0.100', '192.168.0.101');
-    await SecureStore.setItemAsync('server_url', url);
-  }
-  apiCache.baseUrl = url || DEFAULT_BASE_URL;
+  url = normalizeUrl(url);
+  apiCache.baseUrl = url;
   return apiCache.baseUrl;
 };
 
-// Create axios instance
-const api = axios.create();
+// Create axios instance with 15s timeout
+const api = axios.create({
+  timeout: 15000,
+});
 
-// Interceptor to inject baseURL and token dynamically from memory cache
+// Synchronous interceptor to inject baseURL, token, and shopId instantly from memory cache
 api.interceptors.request.use(
-  async (config) => {
-    // If memory cache is empty, fallback to SecureStore once
-    if (!apiCache.baseUrl) {
-      let url = await SecureStore.getItemAsync('server_url');
-      if (url && url.includes('192.168.0.100')) {
-        url = url.replace('192.168.0.100', '192.168.0.101');
-        await SecureStore.setItemAsync('server_url', url);
-      }
-      apiCache.baseUrl = url || DEFAULT_BASE_URL;
-    }
-    config.baseURL = apiCache.baseUrl;
+  (config) => {
+    config.baseURL = apiCache.baseUrl || DEFAULT_BASE_URL;
 
-    if (!apiCache.token) {
-      const token = await SecureStore.getItemAsync('access_token');
-      apiCache.token = token || '';
-    }
     if (apiCache.token && !config.url?.includes('/auth/refresh-token')) {
       config.headers.Authorization = `Bearer ${apiCache.token}`;
     }
 
-    if (!apiCache.shopId) {
-      const shopId = await SecureStore.getItemAsync('selected_shop_id');
-      apiCache.shopId = shopId || '';
-    }
     if (apiCache.shopId) {
       config.headers['x-shop-id'] = apiCache.shopId;
     }

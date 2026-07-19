@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,44 +11,33 @@ import {
   ScrollView,
   Alert,
   Modal,
+  StatusBar,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../_layout';
 import axios from 'axios';
-import { Lock, Mail, Server, Eye, EyeOff, ShoppingBag, ChevronRight, X, Sparkles } from 'lucide-react-native';
-import { DEFAULT_BASE_URL, saveServerUrl, getServerUrl } from '@/api/client';
+import { Lock, Mail, Eye, EyeOff, ShoppingBag, ChevronRight, X, Sparkles, AlertCircle, ShieldCheck } from 'lucide-react-native';
+import { getServerUrl } from '@/api/client';
 import { LinearGradient } from 'expo-linear-gradient';
 
 export default function LoginScreen() {
   const { login } = useAuth();
-  const [serverUrl, setServerUrl] = useState(DEFAULT_BASE_URL);
-  const [email, setEmail] = useState('hafsa.smart.solution@gmail.com');
-  const [password, setPassword] = useState('Hasan1122');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
+
   const [shops, setShops] = useState<any[]>([]);
   const [isShopModalVisible, setIsShopModalVisible] = useState(false);
   const [pendingToken, setPendingToken] = useState<string | null>(null);
   const [pendingRefreshToken, setPendingRefreshToken] = useState<string | null>(null);
 
-  // Load the previously saved server URL on mount so the user doesn't have to re-enter it
-  useEffect(() => {
-    const loadServerUrl = async () => {
-      try {
-        const savedUrl = await getServerUrl();
-        if (savedUrl) {
-          setServerUrl(savedUrl);
-        }
-      } catch (err) {
-        console.error('Error loading saved server URL:', err);
-      }
-    };
-    loadServerUrl();
-  }, []);
-
   const handleLogin = async () => {
-    if (!email || !password) {
+    if (!email.trim() || !password) {
       setErrorMsg('ইমেইল ও পাসওয়ার্ড প্রদান করুন');
       return;
     }
@@ -56,18 +45,9 @@ export default function LoginScreen() {
     setIsLoading(true);
 
     try {
-      let formattedUrl = serverUrl.trim();
-      if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
-        formattedUrl = `http://${formattedUrl}`;
-      }
-      if (!formattedUrl.endsWith('/api/v1')) {
-        if (formattedUrl.endsWith('/')) formattedUrl = formattedUrl.slice(0, -1);
-        if (!formattedUrl.endsWith('/api/v1')) formattedUrl = `${formattedUrl}/api/v1`;
-      }
+      const targetUrl = await getServerUrl();
 
-      await saveServerUrl(formattedUrl);
-
-      const response = await axios.post(`${formattedUrl}/auth/login`, {
+      const response = await axios.post(`${targetUrl}/auth/login`, {
         email: email.trim(),
         password: password,
       });
@@ -75,7 +55,7 @@ export default function LoginScreen() {
       const { accessToken, refreshToken } = response.data.data;
       if (!accessToken || !refreshToken) throw new Error('টোকেন পাওয়া যায়নি');
 
-      const shopsResponse = await axios.get(`${formattedUrl}/shops`, {
+      const shopsResponse = await axios.get(`${targetUrl}/shops`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
 
@@ -111,58 +91,65 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f1f5f9" />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
-          {/* Brand Header */}
-          <View style={styles.brandContainer}>
-            <View style={styles.logoCircle}>
-              <Sparkles size={28} color="#4f46e5" />
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Top Decorative Header */}
+          <View style={styles.brandHeader}>
+            <View style={styles.logoBadgeContainer}>
+              <Image
+                source={require('../../../assets/images/logo-glow.png')}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
             </View>
+
             <Text style={styles.brandTitle}>Invexa</Text>
-            <Text style={styles.brandSubtitle}>ব্যবসা পরিচালনা হোক সহজ ও স্মার্ট</Text>
+            <View style={styles.taglineChip}>
+              <ShieldCheck size={13} color="#4f46e5" style={{ marginRight: 4 }} />
+              <Text style={styles.taglineText}>স্মার্ট ও ডিজিটাল ব্যবসা সিস্টেম</Text>
+            </View>
           </View>
 
           {/* Login Card */}
-          <View style={styles.loginCard}>
-            <Text style={styles.cardHeader}>স্বাগতম! লগইন করুন</Text>
+          <View style={styles.card}>
+            <View style={styles.cardHeaderRow}>
+              <Text style={styles.cardTitle}>একাউন্টে প্রবেশ করুন</Text>
+              <Text style={styles.cardSubTitle}>আপনার সঠিক ইমেইল ও পাসওয়ার্ড লিখুন</Text>
+            </View>
 
             {errorMsg && (
-              <View style={styles.errorBanner}>
+              <View style={styles.errorBox}>
+                <AlertCircle size={18} color="#ef4444" style={{ marginRight: 8 }} />
                 <Text style={styles.errorText}>{errorMsg}</Text>
               </View>
             )}
 
-            {/* Server Input */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>সার্ভার আইপি / ডোমেইন</Text>
-              <View style={styles.inputFieldWrapper}>
-                <Server size={18} color="#94a3b8" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="e.g. 192.168.0.101:5000"
-                  placeholderTextColor="#94a3b8"
-                  value={serverUrl}
-                  onChangeText={setServerUrl}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </View>
-            </View>
-
             {/* Email Input */}
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>ইমেইল ঠিকানা</Text>
-              <View style={styles.inputFieldWrapper}>
-                <Mail size={18} color="#94a3b8" style={styles.inputIcon} />
+              <Text style={styles.label}>ইমেইল ঠিকানা</Text>
+              <View
+                style={[
+                  styles.inputContainer,
+                  emailFocused && styles.inputContainerFocused,
+                ]}
+              >
+                <Mail size={19} color={emailFocused ? '#4f46e5' : '#94a3b8'} style={styles.inputIcon} />
                 <TextInput
                   style={styles.textInput}
-                  placeholder="admin@invexa.com"
-                  placeholderTextColor="#94a3b8"
+                  placeholder="আপনার ইমেইল নাম লিখুন"
+                  placeholderTextColor="#a1a1aa"
                   value={email}
                   onChangeText={setEmail}
+                  onFocus={() => setEmailFocused(true)}
+                  onBlur={() => setEmailFocused(false)}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -172,47 +159,70 @@ export default function LoginScreen() {
 
             {/* Password Input */}
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>পাসওয়ার্ড</Text>
-              <View style={styles.inputFieldWrapper}>
-                <Lock size={18} color="#94a3b8" style={styles.inputIcon} />
+              <Text style={styles.label}>পাসওয়ার্ড</Text>
+              <View
+                style={[
+                  styles.inputContainer,
+                  passwordFocused && styles.inputContainerFocused,
+                ]}
+              >
+                <Lock size={19} color={passwordFocused ? '#4f46e5' : '#94a3b8'} style={styles.inputIcon} />
                 <TextInput
                   style={styles.textInput}
                   placeholder="••••••••"
-                  placeholderTextColor="#94a3b8"
+                  placeholderTextColor="#a1a1aa"
                   secureTextEntry={!showPassword}
                   value={password}
                   onChangeText={setPassword}
+                  onFocus={() => setPasswordFocused(true)}
+                  onBlur={() => setPasswordFocused(false)}
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
-                  {showPassword ? <EyeOff size={18} color="#94a3b8" /> : <Eye size={18} color="#94a3b8" />}
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.eyeBtn}
+                  activeOpacity={0.7}
+                >
+                  {showPassword ? (
+                    <EyeOff size={19} color="#64748b" />
+                  ) : (
+                    <Eye size={19} color="#64748b" />
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
 
-            {/* Login Button */}
-            <TouchableOpacity onPress={handleLogin} disabled={isLoading} activeOpacity={0.85}>
+            {/* Submit Button */}
+            <TouchableOpacity
+              onPress={handleLogin}
+              disabled={isLoading}
+              activeOpacity={0.85}
+              style={{ marginTop: 8 }}
+            >
               <LinearGradient
-                colors={['#4f46e5', '#6366f1']}
+                colors={['#4f46e5', '#3730a3']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
-                style={styles.submitButton}
+                style={styles.loginBtn}
               >
                 {isLoading ? (
                   <ActivityIndicator size="small" color="#ffffff" />
                 ) : (
-                  <Text style={styles.submitButtonText}>লগইন করুন</Text>
+                  <Text style={styles.loginBtnText}>লগইন করুন</Text>
                 )}
               </LinearGradient>
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.footerCopyright}>Invexa © {new Date().getFullYear()} • All Rights Reserved</Text>
+          {/* Footer */}
+          <Text style={styles.footerText}>
+            Invexa © {new Date().getFullYear()} • Secure Cloud Platform
+          </Text>
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Shop Selection Sheet */}
+      {/* Shop Selection Modal */}
       <Modal visible={isShopModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -253,97 +263,121 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#f1f5f9',
   },
   scrollContainer: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 32,
+    paddingHorizontal: 22,
+    paddingVertical: 36,
   },
-  brandContainer: {
+  brandHeader: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 28,
   },
-  logoCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 20,
-    backgroundColor: '#e0e7ff',
+  logoBadgeContainer: {
+    width: 76,
+    height: 76,
+    borderRadius: 24,
+    backgroundColor: '#ffffff',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#4f46e5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-    marginBottom: 16,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 4,
+    marginBottom: 14,
+    padding: 8,
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
   },
   brandTitle: {
-    fontSize: 28,
-    fontWeight: '800',
+    fontSize: 32,
+    fontWeight: '900',
     color: '#0f172a',
-    letterSpacing: -0.5,
+    letterSpacing: -0.8,
   },
-  brandSubtitle: {
-    fontSize: 14,
-    color: '#64748b',
-    marginTop: 4,
-    fontWeight: '500',
+  taglineChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e0e7ff',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    marginTop: 8,
   },
-  loginCard: {
+  taglineText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4338ca',
+  },
+  card: {
     backgroundColor: '#ffffff',
     borderRadius: 28,
     padding: 24,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.03,
-    shadowRadius: 16,
-    elevation: 2,
   },
-  cardHeader: {
-    fontSize: 18,
-    fontWeight: '700',
+  cardHeaderRow: {
+    marginBottom: 20,
+  },
+  cardTitle: {
+    fontSize: 20,
+    fontWeight: '800',
     color: '#0f172a',
-    marginBottom: 24,
-    textAlign: 'center',
+    marginBottom: 4,
   },
-  errorBanner: {
+  cardSubTitle: {
+    fontSize: 13,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#fef2f2',
     borderWidth: 1,
-    borderColor: '#fee2e2',
+    borderColor: '#fecaca',
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 14,
     marginBottom: 18,
   },
   errorText: {
     color: '#ef4444',
     fontSize: 13,
-    textAlign: 'center',
-    fontWeight: '500',
+    fontWeight: '600',
+    flex: 1,
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: 18,
   },
-  inputLabel: {
+  label: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#475569',
-    marginBottom: 6,
+    fontWeight: '800',
+    color: '#334155',
+    marginBottom: 7,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  inputFieldWrapper: {
+  inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f8fafc',
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    height: 48,
-    paddingHorizontal: 12,
+    borderColor: '#f1f5f9',
+    height: 52,
+    paddingHorizontal: 14,
+  },
+  inputContainerFocused: {
+    borderColor: '#4f46e5',
+    backgroundColor: '#ffffff',
+    shadowColor: '#4f46e5',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 1,
   },
   inputIcon: {
     marginRight: 10,
@@ -352,38 +386,38 @@ const styles = StyleSheet.create({
     flex: 1,
     color: '#0f172a',
     fontSize: 15,
+    fontWeight: '600',
   },
-  eyeButton: {
+  eyeBtn: {
     padding: 8,
   },
-  submitButton: {
-    height: 48,
-    borderRadius: 14,
+  loginBtn: {
+    height: 52,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 8,
     shadowColor: '#4f46e5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 4,
   },
-  submitButtonText: {
+  loginBtnText: {
     color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
-  footerCopyright: {
+  footerText: {
     textAlign: 'center',
     color: '#94a3b8',
-    fontSize: 11,
-    marginTop: 32,
-    fontWeight: '500',
+    fontSize: 12,
+    marginTop: 28,
+    fontWeight: '600',
   },
-  // Modal Sheet
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.3)',
+    backgroundColor: 'rgba(15, 23, 42, 0.4)',
     justifyContent: 'flex-end',
   },
   modalContent: {
@@ -393,12 +427,12 @@ const styles = StyleSheet.create({
     maxHeight: '75%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -10 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.1,
     shadowRadius: 24,
     elevation: 10,
   },
   modalHandle: {
-    width: 36,
+    width: 40,
     height: 4,
     borderRadius: 2,
     backgroundColor: '#cbd5e1',
@@ -417,7 +451,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#0f172a',
   },
   closeBtn: {
@@ -433,6 +467,7 @@ const styles = StyleSheet.create({
     color: '#64748b',
     marginBottom: 16,
     lineHeight: 18,
+    fontWeight: '500',
   },
   shopCard: {
     flexDirection: 'row',
@@ -445,9 +480,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   shopBadge: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: '#e0e7ff',
     justifyContent: 'center',
     alignItems: 'center',
@@ -455,12 +490,13 @@ const styles = StyleSheet.create({
   },
   shopNameText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#0f172a',
   },
   shopAddressText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#64748b',
     marginTop: 2,
+    fontWeight: '500',
   },
 });
